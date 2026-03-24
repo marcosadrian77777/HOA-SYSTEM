@@ -1,0 +1,1 @@
+export const DB_NAME = "HOA Sta Barbara villas 1 Water billing and dues mangement system"
