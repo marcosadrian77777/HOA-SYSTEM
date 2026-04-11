@@ -1,15 +1,12 @@
-// ============================================================
-// src/app.js  — updated with billing + dashboard routes
-// ============================================================
-
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
-import billRoutes from "./routes/billRoutes.js";
-import dashboardRoutes from "./routes/dashboardRoutes.js";
+import consumerRoutes from "./routes/consumerRoutes.js";
+import billingRoutes from "./routes/billingRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
 
 const app = express();
 
@@ -25,18 +22,16 @@ app.use(cors({
 
 app.use(express.json());
 
-// ── Routes ────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/bills", billRoutes);
-app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/consumers", consumerRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/payments", paymentRoutes);
 
-// ── Health check ──────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "✅ HOA System server is running!" });
 });
 
-// ── 404 handler ───────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({
     success: false,

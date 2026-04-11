@@ -1,8 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 
-
 const API = "/api";
-
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -10,7 +8,7 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ── Restore session on page refresh ─────────────────────
+  // ── Restore session ──────────────────────────────────────
   useEffect(() => {
     const savedToken = sessionStorage.getItem("hoa_token");
     const savedUser = sessionStorage.getItem("hoa_user");
@@ -26,7 +24,11 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  // ── Login ────────────────────────────────────────────────
+  // ── Login ─────────────────────────────────────────────────
+  // Returns either:
+  // { requiresOTP: true, userId, maskedEmail, maskedPhone, otpSentVia }
+  // OR logs in directly if OTP not configured:
+  // { requiresOTP: false, token, user }
   async function login(username, password) {
     const res = await fetch(`${API}/auth/login`, {
       method: "POST",
@@ -35,13 +37,34 @@ export function AuthProvider({ children }) {
     });
 
     let data;
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error("Server error. Make sure the backend is running.");
-    }
+    try { data = await res.json(); }
+    catch { throw new Error("Server error. Make sure the backend is running."); }
 
     if (!data.success) throw new Error(data.message || "Login failed.");
+
+    // If OTP is not required, log in directly
+    if (!data.requiresOTP) {
+      sessionStorage.setItem("hoa_token", data.token);
+      sessionStorage.setItem("hoa_user", JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+    }
+
+    return data;
+  }
+
+  // ── Verify OTP ────────────────────────────────────────────
+  async function verifyOTP(userId, otp) {
+    const res = await fetch(`${API}/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, otp }),
+    });
+    let data;
+    try { data = await res.json(); }
+    catch { throw new Error("Server error. Make sure the backend is running."); }
+
+    if (!data.success) throw new Error(data.message || "OTP verification failed.");
 
     sessionStorage.setItem("hoa_token", data.token);
     sessionStorage.setItem("hoa_user", JSON.stringify(data.user));
@@ -50,20 +73,30 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  // ── Register ─────────────────────────────────────────────
-  async function register(firstName, lastName, email, username, password) {
+  // ── Resend OTP ────────────────────────────────────────────
+  async function resendOTP(userId) {
+    const res = await fetch(`${API}/auth/resend-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    let data;
+    try { data = await res.json(); }
+    catch { throw new Error("Server error."); }
+    if (!data.success) throw new Error(data.message || "Failed to resend OTP.");
+    return data;
+  }
+
+  // ── Register ──────────────────────────────────────────────
+  async function register(firstName, lastName, email, username, password, phone) {
     const res = await fetch(`${API}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstName, lastName, email, username, password }),
+      body: JSON.stringify({ firstName, lastName, email, username, password, phone }),
     });
-
     let data;
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error("Server error. Make sure the backend is running.");
-    }
+    try { data = await res.json(); }
+    catch { throw new Error("Server error. Make sure the backend is running."); }
 
     if (!data.success) throw new Error(data.message || "Registration failed.");
 
@@ -74,7 +107,7 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  // ── Logout ───────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────
   function logout() {
     sessionStorage.removeItem("hoa_token");
     sessionStorage.removeItem("hoa_user");
@@ -82,7 +115,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
-  // ── Authenticated fetch (for admin routes etc.) ──────────
+  // ── Authenticated fetch ───────────────────────────────────
   async function authFetch(url, options = {}) {
     const res = await fetch(`${API}${url}`, {
       ...options,
@@ -92,21 +125,14 @@ export function AuthProvider({ children }) {
         ...options.headers,
       },
     });
-
     let data;
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error("Server error. Make sure the backend is running.");
-    }
-
+    try { data = await res.json(); }
+    catch { throw new Error("Server error. Make sure the backend is running."); }
     return data;
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, token, loading, login, register, logout, authFetch }}
-    >
+    <AuthContext.Provider value={{ user, token, loading, login, verifyOTP, resendOTP, register, logout, authFetch }}>
       {children}
     </AuthContext.Provider>
   );
